@@ -21,33 +21,15 @@
 
 package de.taimos.pipeline.aws.cloudformation;
 
+import com.amazonaws.services.cloudformation.AmazonCloudFormation;
+import com.amazonaws.services.cloudformation.model.*;
+import com.amazonaws.waiters.Waiter;
+import hudson.model.TaskListener;
+
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
-
-import com.amazonaws.services.cloudformation.AmazonCloudFormation;
-import com.amazonaws.services.cloudformation.model.AmazonCloudFormationException;
-import com.amazonaws.services.cloudformation.model.Capability;
-import com.amazonaws.services.cloudformation.model.ChangeSetType;
-import com.amazonaws.services.cloudformation.model.CreateChangeSetRequest;
-import com.amazonaws.services.cloudformation.model.CreateStackRequest;
-import com.amazonaws.services.cloudformation.model.DeleteChangeSetRequest;
-import com.amazonaws.services.cloudformation.model.DeleteStackRequest;
-import com.amazonaws.services.cloudformation.model.DescribeChangeSetRequest;
-import com.amazonaws.services.cloudformation.model.DescribeChangeSetResult;
-import com.amazonaws.services.cloudformation.model.DescribeStacksRequest;
-import com.amazonaws.services.cloudformation.model.DescribeStacksResult;
-import com.amazonaws.services.cloudformation.model.ExecuteChangeSetRequest;
-import com.amazonaws.services.cloudformation.model.OnFailure;
-import com.amazonaws.services.cloudformation.model.Output;
-import com.amazonaws.services.cloudformation.model.Parameter;
-import com.amazonaws.services.cloudformation.model.Stack;
-import com.amazonaws.services.cloudformation.model.Tag;
-import com.amazonaws.services.cloudformation.model.UpdateStackRequest;
-import com.amazonaws.waiters.Waiter;
-
-import hudson.model.TaskListener;
 
 public class CloudFormationStack {
 
@@ -66,10 +48,10 @@ public class CloudFormationStack {
 			DescribeStacksResult result = this.client.describeStacks(new DescribeStacksRequest().withStackName(this.stack));
 			return !result.getStacks().isEmpty();
 		} catch (AmazonCloudFormationException e) {
-			if ("AccessDenied".equals(e.getErrorCode())) {
+			if ("AccessDenied" .equals(e.getErrorCode())) {
 				this.listener.getLogger().format("Got error from describeStacks: %s %n", e.getErrorMessage());
 				throw e;
-			} else if ("ValidationError".equals(e.getErrorCode()) && e.getErrorMessage().contains("does not exist")) {
+			} else if ("ValidationError" .equals(e.getErrorCode()) && e.getErrorMessage().contains("does not exist")) {
 				return false;
 			} else {
 				throw e;
@@ -82,7 +64,7 @@ public class CloudFormationStack {
 			this.client.describeChangeSet(new DescribeChangeSetRequest().withStackName(this.stack).withChangeSetName(changeSetName));
 			return true;
 		} catch (AmazonCloudFormationException e) {
-			if ("AccessDenied".equals(e.getErrorCode())) {
+			if ("AccessDenied" .equals(e.getErrorCode())) {
 				this.listener.getLogger().format("Got error from describeStacks: %s %n", e.getErrorMessage());
 				throw e;
 			}
@@ -222,5 +204,12 @@ public class CloudFormationStack {
 	public void delete(long pollIntervallMillis) throws ExecutionException {
 		this.client.deleteStack(new DeleteStackRequest().withStackName(this.stack));
 		new EventPrinter(this.client, this.listener).waitAndPrintStackEvents(this.stack, this.client.waiters().stackDeleteComplete(), pollIntervallMillis);
+	}
+
+	public DescribeChangeSetResult describeChangeSet(String changeSet) {
+		return this.client.describeChangeSet(new DescribeChangeSetRequest()
+				.withStackName(stack)
+				.withChangeSetName(changeSet)
+		);
 	}
 }

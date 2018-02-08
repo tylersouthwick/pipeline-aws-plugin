@@ -21,24 +21,22 @@
 
 package de.taimos.pipeline.aws.cloudformation;
 
-import java.util.Collection;
-import java.util.Set;
-
-import org.jenkinsci.plugins.workflow.steps.StepContext;
-import org.jenkinsci.plugins.workflow.steps.StepDescriptor;
-import org.jenkinsci.plugins.workflow.steps.StepExecution;
-import org.kohsuke.stapler.DataBoundConstructor;
-
 import com.amazonaws.services.cloudformation.model.ChangeSetType;
 import com.amazonaws.services.cloudformation.model.Parameter;
 import com.amazonaws.services.cloudformation.model.Tag;
 import com.google.common.base.Preconditions;
-
 import de.taimos.pipeline.aws.utils.StepUtils;
 import hudson.EnvVars;
 import hudson.Extension;
 import hudson.FilePath;
 import hudson.model.TaskListener;
+import org.jenkinsci.plugins.workflow.steps.StepContext;
+import org.jenkinsci.plugins.workflow.steps.StepDescriptor;
+import org.jenkinsci.plugins.workflow.steps.StepExecution;
+import org.kohsuke.stapler.DataBoundConstructor;
+
+import java.util.Collection;
+import java.util.Set;
 
 public class CFNCreateChangeSetStep extends AbstractCFNCreateStep {
 
@@ -100,8 +98,9 @@ public class CFNCreateChangeSetStep extends AbstractCFNCreateStep {
 			final String changeSet = this.getStep().getChangeSet();
 			final String file = this.getStep().getFile();
 			final String url = this.getStep().getUrl();
-			this.getCfnStack().createChangeSet(changeSet, this.readTemplate(file), url, parameters, tags, this.getStep().getPollInterval(), ChangeSetType.UPDATE, this.getStep().getRoleArn());
-			return null;
+			CloudFormationStack cfnStack = this.getCfnStack();
+			cfnStack.createChangeSet(changeSet, this.readTemplate(file), url, parameters, tags, this.getStep().getPollInterval(), ChangeSetType.UPDATE, this.getStep().getRoleArn());
+			return cfnStack.describeChangeSet(changeSet).getChanges();
 		}
 
 		@Override
@@ -109,8 +108,9 @@ public class CFNCreateChangeSetStep extends AbstractCFNCreateStep {
 			final String changeSet = this.getStep().getChangeSet();
 			final String file = this.getStep().getFile();
 			final String url = this.getStep().getUrl();
-			this.getCfnStack().createChangeSet(changeSet, this.readTemplate(file), url, parameters, tags, this.getStep().getPollInterval(), ChangeSetType.CREATE, this.getStep().getRoleArn());
-			return null;
+			CloudFormationStack cfnStack = this.getCfnStack();
+			cfnStack.createChangeSet(changeSet, this.readTemplate(file), url, parameters, tags, this.getStep().getPollInterval(), ChangeSetType.CREATE, this.getStep().getRoleArn());
+			return cfnStack.describeChangeSet(changeSet).getChanges();
 		}
 
 		private static final long serialVersionUID = 1L;
