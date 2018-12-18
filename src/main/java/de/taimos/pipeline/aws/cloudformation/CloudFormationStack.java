@@ -9,7 +9,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *	  http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,12 +21,6 @@
 
 package de.taimos.pipeline.aws.cloudformation;
 
-import java.time.Duration;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.ExecutionException;
-
 import com.amazonaws.services.cloudformation.AmazonCloudFormation;
 import com.amazonaws.services.cloudformation.model.AmazonCloudFormationException;
 import com.amazonaws.services.cloudformation.model.Capability;
@@ -37,30 +31,47 @@ import com.amazonaws.services.cloudformation.model.DeleteChangeSetRequest;
 import com.amazonaws.services.cloudformation.model.DeleteStackRequest;
 import com.amazonaws.services.cloudformation.model.DescribeChangeSetRequest;
 import com.amazonaws.services.cloudformation.model.DescribeChangeSetResult;
+import com.amazonaws.services.cloudformation.model.DescribeStackDriftDetectionStatusRequest;
+import com.amazonaws.services.cloudformation.model.DescribeStackDriftDetectionStatusResult;
+import com.amazonaws.services.cloudformation.model.DescribeStackResourceDriftsRequest;
+import com.amazonaws.services.cloudformation.model.DescribeStackResourceDriftsResult;
 import com.amazonaws.services.cloudformation.model.DescribeStacksRequest;
 import com.amazonaws.services.cloudformation.model.DescribeStacksResult;
+import com.amazonaws.services.cloudformation.model.DetectStackDriftRequest;
+import com.amazonaws.services.cloudformation.model.DetectStackDriftResult;
 import com.amazonaws.services.cloudformation.model.ExecuteChangeSetRequest;
 import com.amazonaws.services.cloudformation.model.OnFailure;
 import com.amazonaws.services.cloudformation.model.Output;
 import com.amazonaws.services.cloudformation.model.Parameter;
 import com.amazonaws.services.cloudformation.model.RollbackConfiguration;
 import com.amazonaws.services.cloudformation.model.Stack;
+import com.amazonaws.services.cloudformation.model.StackDriftStatus;
+import com.amazonaws.services.cloudformation.model.StackResourceDrift;
+import com.amazonaws.services.cloudformation.model.StackResourceDriftStatus;
 import com.amazonaws.services.cloudformation.model.Tag;
 import com.amazonaws.services.cloudformation.model.UpdateStackRequest;
 import com.amazonaws.waiters.Waiter;
-
 import hudson.model.TaskListener;
+
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
 public class CloudFormationStack {
 
 	private final AmazonCloudFormation client;
 	private final String stack;
 	private final TaskListener listener;
+	private final CustomCloudformationWaiters waiters;
 
 	public CloudFormationStack(AmazonCloudFormation client, String stack, TaskListener listener) {
 		this.client = client;
 		this.stack = stack;
 		this.listener = listener;
+		this.waiters = CustomCloudformationWaiters.of(client);
 	}
 
 	public boolean exists() {
@@ -237,6 +248,34 @@ public class CloudFormationStack {
 				.withStackName(this.stack)
 				.withChangeSetName(changeSet)
 		);
+	}
+
+	DescribeStackDriftDetectionStatusResult findStackDrift(PollConfiguration pollConfiguration) {
+		DetectStackDriftResult result = this.client.detectStackDrift(new DetectStackDriftRequest()
+				.withStackName(this.stack)
+		);
+		new EventPrinter(this.client, this.listener).waitForDriftDetection(result.getStackDriftDetectionId(), this.waiters.stackDriftComplete(), pollConfiguration);
+		DescribeStackDriftDetectionStatusResult statusResult = this.client.describeStackDriftDetectionStatus(new DescribeStackDriftDetectionStatusRequest().withStackDriftDetectionId(result.getStackDriftDetectionId()));
+		if (statusResult.getStackDriftStatus().equals(StackDriftStatus.DRIFTED.name())) {
+			this.listener.getLogger().format("%s has drifted. Found %d resources in a drifted state %n", this.stack, statusResult.getDriftedStackResourceCount());
+			for (StackResourceDrift stackResourceDrift : findStackResourceDrift()) {
+				if (!stackResourceDrift.getStackResourceDriftStatus().equals(StackResourceDriftStatus.IN_SYNC.name())) {
+					this.listener.getLogger().format("logicalId=%s status=%s", stackResourceDrift.getLogicalResourceId(), stackResourceDrift.getStackResourceDriftStatus());
+				}
+			}
+		}
+		return statusResult;
+	}
+
+	List<StackResourceDrift> findStackResourceDrift() {
+		List<StackResourceDrift> list = new LinkedList<>();
+		String nextToken = null;
+		do {
+			DescribeStackResourceDriftsResult resourceDriftsResult = this.client.describeStackResourceDrifts(new DescribeStackResourceDriftsRequest().withStackName(this.stack).withNextToken(nextToken));
+			nextToken = resourceDriftsResult.getNextToken();
+			list.addAll(resourceDriftsResult.getStackResourceDrifts());
+		} while (nextToken != null);
+		return list;
 	}
 
 	private boolean isInReview() {

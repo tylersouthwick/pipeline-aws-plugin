@@ -21,22 +21,11 @@
 
 package de.taimos.pipeline.aws.cloudformation;
 
-import java.text.SimpleDateFormat;
-import java.time.Duration;
-import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Date;
-import java.util.List;
-import java.util.concurrent.ExecutionException;
-
-import org.apache.commons.lang.StringUtils;
-import org.apache.http.concurrent.BasicFuture;
-
 import com.amazonaws.AmazonWebServiceRequest;
 import com.amazonaws.services.cloudformation.AmazonCloudFormation;
 import com.amazonaws.services.cloudformation.model.AmazonCloudFormationException;
 import com.amazonaws.services.cloudformation.model.DescribeChangeSetRequest;
+import com.amazonaws.services.cloudformation.model.DescribeStackDriftDetectionStatusRequest;
 import com.amazonaws.services.cloudformation.model.DescribeStackEventsRequest;
 import com.amazonaws.services.cloudformation.model.DescribeStackEventsResult;
 import com.amazonaws.services.cloudformation.model.DescribeStacksRequest;
@@ -46,10 +35,8 @@ import com.amazonaws.waiters.PollingStrategy;
 import com.amazonaws.waiters.Waiter;
 import com.amazonaws.waiters.WaiterHandler;
 import com.amazonaws.waiters.WaiterParameters;
-
 import de.taimos.pipeline.aws.cloudformation.utils.TimeOutRetryStrategy;
 import hudson.model.TaskListener;
-
 import org.apache.commons.lang.StringUtils;
 import org.apache.http.concurrent.BasicFuture;
 
@@ -107,6 +94,10 @@ class EventPrinter {
 			}
 		});
 		this.waitAndPrintEvents(stack, pollConfiguration, waitResult);
+	}
+
+	void waitForDriftDetection(String detectionId, Waiter<DescribeStackDriftDetectionStatusRequest> waiter, PollConfiguration pollConfiguration) {
+		waiter.run(new WaiterParameters<>(new DescribeStackDriftDetectionStatusRequest().withStackDriftDetectionId(detectionId)).withPollingStrategy(this.pollingStrategy(pollConfiguration)));
 	}
 
 	private PollingStrategy pollingStrategy(PollConfiguration pollConfiguration) {
