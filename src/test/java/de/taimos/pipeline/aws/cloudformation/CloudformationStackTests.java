@@ -75,6 +75,7 @@ public class CloudformationStackTests {
 							  )
 		);
 		Assertions.assertThat(stack.exists()).isTrue();
+		Mockito.verifyNoMoreInteractions(client);
 	}
 
 	@Test
@@ -90,6 +91,7 @@ public class CloudformationStackTests {
 												   .withStackName("foo")
 		)).thenThrow(ex);
 		Assertions.assertThat(stack.exists()).isFalse();
+		Mockito.verifyNoMoreInteractions(client);
 	}
 
 	@Test
@@ -105,6 +107,7 @@ public class CloudformationStackTests {
 							  .withChanges(new Change())
 		);
 		Assertions.assertThat(stack.changeSetExists("bar")).isTrue();
+		Mockito.verifyNoMoreInteractions(client);
 	}
 
 	@Test
@@ -131,6 +134,7 @@ public class CloudformationStackTests {
 		Mockito.verify(client).executeChangeSet(Mockito.any(ExecuteChangeSetRequest.class));
 		Mockito.verify(this.eventPrinter).waitAndPrintStackEvents(Mockito.eq("foo"), Mockito.any(Waiter.class), Mockito.eq(PollConfiguration.DEFAULT));
 		Assertions.assertThat(outputs).containsEntry("bar", "baz").containsEntry("jenkinsStackUpdateStatus", "true");
+		Mockito.verifyNoMoreInteractions(client);
 	}
 
 	@Test
@@ -149,6 +153,7 @@ public class CloudformationStackTests {
 		Map<String, String> outputs = stack.executeChangeSet("bar", PollConfiguration.DEFAULT);
 		Mockito.verify(client, Mockito.never()).executeChangeSet(Mockito.any(ExecuteChangeSetRequest.class));
 		Assertions.assertThat(outputs).containsEntry("bar", "baz").containsEntry("jenkinsStackUpdateStatus", "false");
+		Mockito.verifyNoMoreInteractions(client);
 	}
 
 	@Test
@@ -165,6 +170,7 @@ public class CloudformationStackTests {
 													  .withChangeSetName("bar")
 		)).thenThrow(ex);
 		Assertions.assertThat(stack.changeSetExists("bar")).isFalse();
+		Mockito.verifyNoMoreInteractions(client);
 	}
 
 	@Test
@@ -178,6 +184,7 @@ public class CloudformationStackTests {
 		Assertions.assertThat(stack.describeOutputs()).isEqualTo(Collections.singletonMap(
 				"bar", "baz"
 		));
+		Mockito.verifyNoMoreInteractions(client);
 	}
 
 	@Test
@@ -205,6 +212,7 @@ public class CloudformationStackTests {
 																   .withRoleARN("myarn")
 		);
 		Mockito.verify(this.eventPrinter).waitAndPrintChangeSetEvents(Mockito.eq("foo"), Mockito.eq("c1"), Mockito.any(Waiter.class), Mockito.eq(PollConfiguration.DEFAULT));
+		Mockito.verifyNoMoreInteractions(client);
 	}
 
 	@Test
@@ -232,6 +240,7 @@ public class CloudformationStackTests {
 																   .withRoleARN("myarn")
 		);
 		Mockito.verify(this.eventPrinter).waitAndPrintChangeSetEvents(Mockito.eq("foo"), Mockito.eq("c1"), Mockito.any(Waiter.class), Mockito.eq(PollConfiguration.DEFAULT));
+		Mockito.verifyNoMoreInteractions(client);
 	}
 
 	@Test
@@ -259,6 +268,40 @@ public class CloudformationStackTests {
 																   .withRoleARN("myarn")
 		);
 		Mockito.verify(this.eventPrinter).waitAndPrintChangeSetEvents(Mockito.eq("foo"), Mockito.eq("c1"), Mockito.any(Waiter.class), Mockito.eq(PollConfiguration.DEFAULT));
+		Mockito.verifyNoMoreInteractions(client);
+	}
+
+	/**
+	 * ROLLBACK_COMPLETE is a final state for a stack; the creation was attempted, but it failed.
+	 * If a stack is in this state, it needs to be deleted before a change set can be created.
+	 */
+	@Test
+	public void createStackWithStackInRollbackComplete() throws ExecutionException {
+		TaskListener taskListener = Mockito.mock(TaskListener.class);
+		Mockito.when(taskListener.getLogger()).thenReturn(System.out);
+		AmazonCloudFormation client = Mockito.mock(AmazonCloudFormation.class);
+		Mockito.when(client.waiters()).thenReturn(new AmazonCloudFormationWaiters(client));
+		Mockito.when(client.describeStacks(new DescribeStacksRequest().withStackName("foo")))
+				.thenReturn(new DescribeStacksResult().withStacks(new Stack().withStackStatus("ROLLBACK_COMPLETE")));
+
+		CloudFormationStack stack = new CloudFormationStack(client, "foo", taskListener);
+
+		stack.createChangeSet("c1", "templateBody", null, Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), PollConfiguration.DEFAULT, ChangeSetType.UPDATE, "myarn", null);
+
+		Mockito.verify(client).deleteStack(Mockito.any());
+		ArgumentCaptor<CreateChangeSetRequest> captor = ArgumentCaptor.forClass(CreateChangeSetRequest.class);
+		Mockito.verify(client).createChangeSet(captor.capture());
+		Assertions.assertThat(captor.getValue()).isEqualTo(new CreateChangeSetRequest()
+																   .withChangeSetType(ChangeSetType.CREATE)
+																   .withStackName("foo")
+																   .withTemplateBody("templateBody")
+																   .withCapabilities(Capability.values())
+																   .withParameters(Collections.emptyList())
+																   .withChangeSetName("c1")
+																   .withRoleARN("myarn")
+		);
+		Mockito.verify(this.eventPrinter).waitAndPrintChangeSetEvents(Mockito.eq("foo"), Mockito.eq("c1"), Mockito.any(Waiter.class), Mockito.eq(PollConfiguration.DEFAULT));
+		Mockito.verifyNoMoreInteractions(client);
 	}
 
 	@Test
@@ -287,6 +330,7 @@ public class CloudformationStackTests {
 		);
 		Mockito.verify(this.eventPrinter).waitAndPrintStackEvents(Mockito.eq("foo"), Mockito.any(Waiter.class), Mockito.eq(PollConfiguration.DEFAULT));
 		Assertions.assertThat(outputs).containsEntry("bar", "baz").containsEntry("jenkinsStackUpdateStatus", "true");
+		Mockito.verifyNoMoreInteractions(client);
 	}
 
 	@Test
@@ -315,6 +359,9 @@ public class CloudformationStackTests {
 		);
 		Mockito.verify(this.eventPrinter).waitAndPrintStackEvents(Mockito.eq("foo"), Mockito.any(Waiter.class), Mockito.eq(PollConfiguration.DEFAULT));
 		Assertions.assertThat(outputs).containsEntry("bar", "baz").containsEntry("jenkinsStackUpdateStatus", "true");
+		Mockito.verify(client).waiters();
+		Mockito.verify(client).describeStacks(Mockito.any());
+		Mockito.verifyNoMoreInteractions(client);
 	}
 
 	@Test
@@ -343,6 +390,7 @@ public class CloudformationStackTests {
 		);
 		Mockito.verify(this.eventPrinter).waitAndPrintStackEvents(Mockito.eq("foo"), Mockito.any(Waiter.class), Mockito.eq(PollConfiguration.DEFAULT));
 		Assertions.assertThat(outputs).containsEntry("bar", "baz").containsEntry("jenkinsStackUpdateStatus", "true");
+		Mockito.verifyNoMoreInteractions(client);
 	}
 
 	@Test
@@ -371,6 +419,7 @@ public class CloudformationStackTests {
 		);
 		Mockito.verify(this.eventPrinter).waitAndPrintStackEvents(Mockito.eq("foo"), Mockito.any(Waiter.class), Mockito.eq(PollConfiguration.DEFAULT));
 		Assertions.assertThat(outputs).containsEntry("bar", "baz").containsEntry("jenkinsStackUpdateStatus", "true");
+		Mockito.verifyNoMoreInteractions(client);
 	}
 
 	@Test
@@ -404,6 +453,7 @@ public class CloudformationStackTests {
 		);
 		Mockito.verify(this.eventPrinter).waitAndPrintStackEvents(Mockito.eq("foo"), Mockito.any(Waiter.class), Mockito.eq(pollConfiguration));
 		Assertions.assertThat(outputs).containsEntry("bar", "baz").containsEntry("jenkinsStackUpdateStatus", "true");
+		Mockito.verifyNoMoreInteractions(client);
 	}
 
 	@Test(expected = IllegalArgumentException.class)
@@ -418,6 +468,7 @@ public class CloudformationStackTests {
 			stack.create(null, null, Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), PollConfiguration.DEFAULT, "myarn", OnFailure.ROLLBACK.toString(), null);
 		} finally {
 			Mockito.verifyZeroInteractions(client);
+			Mockito.verifyNoMoreInteractions(client);
 		}
 	}
 
@@ -438,6 +489,7 @@ public class CloudformationStackTests {
 																   .withStackName("foo")
 		);
 		Mockito.verify(this.eventPrinter).waitAndPrintStackEvents(Mockito.eq("foo"), Mockito.any(Waiter.class), Mockito.eq(PollConfiguration.DEFAULT));
+		Mockito.verifyNoMoreInteractions(client);
 	}
 
 	@Test
@@ -461,5 +513,6 @@ public class CloudformationStackTests {
 																   .withStackName("foo")
 																   .withChangeSetName("bar")
 		);
+		Mockito.verifyNoMoreInteractions(client);
 	}
 }
