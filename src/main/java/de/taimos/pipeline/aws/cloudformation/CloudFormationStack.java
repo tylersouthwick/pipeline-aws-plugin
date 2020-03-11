@@ -187,7 +187,10 @@ public class CloudFormationStack {
 
 	public void createChangeSet(String changeSetName, String templateBody, String templateUrl, Collection<Parameter> params, Collection<Tag> tags, Collection<String> notificationARNs, PollConfiguration pollConfiguration, ChangeSetType changeSetType, String roleArn, RollbackConfiguration rollbackConfig) throws ExecutionException {
 		ChangeSetType effectiveChangeSetType;
-		if (isInReview()) {
+		if (stackHasStatus("ROLLBACK_COMPLETE")) {
+			this.delete(pollConfiguration);
+			effectiveChangeSetType = ChangeSetType.CREATE;
+		} else if (isInReview()) {
 			effectiveChangeSetType = ChangeSetType.CREATE;
 		} else {
 			effectiveChangeSetType = changeSetType;
@@ -286,9 +289,13 @@ public class CloudFormationStack {
 	}
 
 	private boolean isInReview() {
+			return stackHasStatus("REVIEW_IN_PROGRESS");
+	}
+
+	private boolean stackHasStatus(String stackStatus) {
 		if (this.exists()) {
 			DescribeStacksResult result = this.client.describeStacks(new DescribeStacksRequest().withStackName(this.stack));
-			return result.getStacks().size() > 0 && result.getStacks().get(0).getStackStatus().equals("REVIEW_IN_PROGRESS");
+			return result.getStacks().size() > 0 && result.getStacks().get(0).getStackStatus().equals(stackStatus);
 		}
 		return false;
 	}
