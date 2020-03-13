@@ -315,6 +315,22 @@ public class WithAWSStepTest {
 	}
 
 	@Test
+	public void stepWithRefreshedAssumeRole() throws Exception {
+		WorkflowJob job = jenkinsRule.jenkins.createProject(WorkflowJob.class, "testStepWithAssumeRole");
+		job.setDefinition(new CpsFlowDefinition(""
+				+ "node {\n"
+				+ "  withAWS (role: 'myRole', roleAccount: '123456789012') {\n"
+				+ "    echo 'It works!'\n"
+				+ "  }\n"
+				+ "}\n", true)
+		);
+		WorkflowRun workflowRun = job.scheduleBuild2(0).get();
+		jenkinsRule.waitForCompletion(workflowRun);
+		jenkinsRule.assertBuildStatus(Result.FAILURE, workflowRun);
+		jenkinsRule.assertLogContains("Requesting assume role", workflowRun);
+	}
+
+	@Test
 	public void testListCredentials() throws Exception {
 		Folder folder = jenkinsRule.jenkins.createProject(Folder.class, "folder" + jenkinsRule.jenkins.getItems().size());
 		CredentialsStore folderStore = this.getFolderStore(folder);

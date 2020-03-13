@@ -42,9 +42,9 @@ public class AWSClientFactory {
 
 	static final String AWS_PROFILE = "AWS_PROFILE";
 	static final String AWS_DEFAULT_PROFILE = "AWS_DEFAULT_PROFILE";
-	static final String AWS_ACCESS_KEY_ID = "AWS_ACCESS_KEY_ID";
-	static final String AWS_SECRET_ACCESS_KEY = "AWS_SECRET_ACCESS_KEY";
-	static final String AWS_SESSION_TOKEN = "AWS_SESSION_TOKEN";
+	public static final String AWS_ACCESS_KEY_ID = "AWS_ACCESS_KEY_ID";
+	public static final String AWS_SECRET_ACCESS_KEY = "AWS_SECRET_ACCESS_KEY";
+	public static final String AWS_SESSION_TOKEN = "AWS_SESSION_TOKEN";
 	static final String AWS_DEFAULT_REGION = "AWS_DEFAULT_REGION";
 	static final String AWS_REGION = "AWS_REGION";
 	static final String AWS_ENDPOINT_URL = "AWS_ENDPOINT_URL";
