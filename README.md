@@ -1095,6 +1095,7 @@ ebWaitOnEnvironmentHealth(
 * Fix wrong partition detection when assuming role
 * Fix resource listing for lambdaVersionCleanup when using a cloudformation stack with lots of resources
 * Fix issues around S3UploadFile with text string argument
+* Add setting that enables fetching credentials from node
 
 ## 1.42
 * Adds new parameters to cfnDelete for roleArn, clientRequestToken, and retainResources.
